@@ -15,19 +15,20 @@ def tensor_per_quantize(tensor):
     return quantize.astype(np.int8), scale
 
 
-def tensor_per_dequantize(quantize, scale):
+def tensor_per_dequantize(quantize, scale, original):
 
     dequantize = quantize*scale
 
-    
+    mse = np.mean((tensor-dequantize)**2)
 
-    return dequantize
+    return dequantize, mse
 
 
-tensor = np.array([-456,-32,0,1,4,23,7,34,67,500])
+tensor = np.array([-456,-32,0,1,4,23,7,34,67,500],dtype=np.float32)
 quantize,scale = tensor_per_quantize(tensor)
-dequantize = tensor_per_dequantize(quantize, scale)
+dequantize, mse = tensor_per_dequantize(quantize, scale, tensor)
 
 print(f'Tensor(FLOAT32):{tensor}')
 print(f'Scale:{scale}\nQuantization : {quantize}')
 print(f'Dequantization : {dequantize}')
+print(f'Reconstruction Error : {mse}')
