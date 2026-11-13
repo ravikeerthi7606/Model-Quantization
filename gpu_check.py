@@ -8,3 +8,5 @@ if torch.cuda.is_available():
     print("VRAM:", round(
         torch.cuda.get_device_properties(0).total_memory / 1024**3, 2
     ), "GB")
+
+# pip install torch==2.6.0 torchvision==0.21.0 torchaudio==2.6.0 --index-url https://download.pytorch.org/whl/cu124
