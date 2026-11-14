@@ -34,12 +34,6 @@ def test_quantizer(granularity):
     print("Scale shape:", params["scale"].shape)
 
 
-def test_invalid_bits():
-
-    with pytest.raises(NotImplementedError):
-        Quantizer(bits=4)
-
-
 def test_invalid_granularity():
 
     with pytest.raises(ValueError):

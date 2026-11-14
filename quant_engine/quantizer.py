@@ -1,4 +1,6 @@
 
+from .utils import get_quantization_range
+
 from .per_tensor import (
     quantize_tensor,
     dequantize_tensor
@@ -26,10 +28,8 @@ class Quantizer:
         axis=0
     ):
 
-        if bits != 8:
-            raise NotImplementedError(
-                "Currently only INT8 is supported."
-            )
+        # Validate bit width
+        get_quantization_range(bits)
 
         if scheme != "symmetric":
             raise NotImplementedError(
@@ -43,7 +43,11 @@ class Quantizer:
         ]:
             raise ValueError("Invalid granularity")
 
-        if group_size <= 0:
+        if (
+            not isinstance(group_size, int)
+            or isinstance(group_size, bool)
+            or group_size <= 0
+        ):
             raise ValueError("group_size must be positive")
 
         self.bits = bits
@@ -56,24 +60,30 @@ class Quantizer:
 
         if self.granularity == "per_tensor":
 
-            q_tensor, scale = quantize_tensor(tensor)
+            q_tensor, scale = quantize_tensor(
+                tensor,
+                bits=self.bits
+            )
 
             params = {
                 "scale": scale,
-                "granularity": self.granularity
+                "granularity": self.granularity,
+                "bits": self.bits
             }
 
         elif self.granularity == "per_channel":
 
             q_tensor, scale = quantize_per_channel(
                 tensor,
-                axis=self.axis
+                axis=self.axis,
+                bits=self.bits
             )
 
             params = {
                 "scale": scale,
                 "axis": self.axis,
-                "granularity": self.granularity
+                "granularity": self.granularity,
+                "bits": self.bits
             }
 
         else:
@@ -81,14 +91,16 @@ class Quantizer:
             q_tensor, scale = quantize_per_group(
                 tensor,
                 group_size=self.group_size,
-                axis=self.axis
+                axis=self.axis,
+                bits=self.bits
             )
 
             params = {
                 "scale": scale,
                 "axis": self.axis,
                 "group_size": self.group_size,
-                "granularity": self.granularity
+                "granularity": self.granularity,
+                "bits": self.bits
             }
 
         return q_tensor, params

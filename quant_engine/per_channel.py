@@ -1,53 +1,49 @@
 
 import torch
+from .utils import get_quantization_range
 
 
-def quantize_per_channel(
-    tensor: torch.Tensor,
-    axis: int = 0
-):
-    q_min, q_max = -128, 127
+def quantize_per_channel(tensor, axis=0, bits=8):
 
-    # Normalize axis
+    if tensor.ndim == 0 or tensor.numel() == 0:
+        raise ValueError("Tensor must be non-empty and non-scalar")
+
+    if not tensor.is_floating_point():
+        raise TypeError("Input must be floating point")
+
+    if not torch.isfinite(tensor).all():
+        raise ValueError("Tensor contains NaN or Inf")
+
+    if not -tensor.ndim <= axis < tensor.ndim:
+        raise ValueError("Invalid axis")
+
+    q_min, q_max = get_quantization_range(bits)
+
     axis = axis % tensor.ndim
 
-    # Dimensions to reduce
     reduce_dims = tuple(
         i for i in range(tensor.ndim)
         if i != axis
     )
 
-    # Calculate maximum absolute value per channel
-    max_abs = torch.amax(
-        torch.abs(tensor),
+    max_abs = tensor.abs().amax(
         dim=reduce_dims,
         keepdim=True
     )
 
-    # Calculate individual channel scales
     scale = max_abs / q_max
 
-    # Handle zero-valued channels
     scale = torch.where(
         scale == 0,
         torch.ones_like(scale),
         scale
     )
 
-    # Quantization
-    q_tensor = torch.round(tensor / scale)
+    q = torch.round(tensor / scale)
+    q = torch.clamp(q, q_min, q_max)
 
-    q_tensor = torch.clamp(
-        q_tensor,
-        q_min,
-        q_max
-    )
-
-    return q_tensor.to(torch.int8), scale
+    return q.to(torch.int8), scale
 
 
-def dequantize_per_channel(
-    q_tensor: torch.Tensor,
-    scale: torch.Tensor
-):
-    return q_tensor.to(torch.float32) * scale
+def dequantize_per_channel(q_tensor, scale):
+    return q_tensor.to(scale.dtype) * scale
