@@ -1,8 +1,29 @@
-/venv/*
-/__pycache__/*
-/.pytest_cache/*
-/*.pyc
-/*.pyo
-/*.pyd
-/model_quantization.egg-info/*
-/quant_engine/model_quantization.egg-info/*
+# Virtual environments
+/venv/
+/.venv/
+/env/
+
+# Python caches and test tooling
+__pycache__/
+*.py[cod]
+*$py.class
+/.pytest_cache/
+/.mypy_cache/
+/.ruff_cache/
+/.coverage
+/coverage.xml
+/htmlcov/
+/.tox/
+/.nox/
+
+# Packaging/build outputs
+/build/
+/dist/
+*.egg-info/
+
+# Notebooks
+/.ipynb_checkpoints/
+
+# Generated model artifacts
+*.pt
+*.pth
