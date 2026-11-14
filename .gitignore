@@ -1,2 +1,8 @@
 /venv/*
 /__pycache__/*
+/.pytest_cache/*
+/*.pyc
+/*.pyo
+/*.pyd
+/model_quantization.egg-info/*
+/quant_engine/model_quantization.egg-info/*
