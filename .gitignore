@@ -27,3 +27,5 @@ __pycache__/
 # Generated model artifacts
 *.pt
 *.pth
+
+*.zip
