@@ -103,12 +103,30 @@ class MinMaxObserver:
 
 class ModelCalibrator:
 
-    def __init__(self, bits=8):
+    def __init__(self, bits=8,observer_type="minmax",percentile=99.9):
 
         get_quantization_range(bits)
 
+        if observer_type not in ["minmax", "percentile"]:
+                    raise ValueError("Invalid observer type")
+
         self.bits = bits
+        self.observer_type = observer_type
+        self.percentile = percentile
         self.observers = {}
+
+    def _create_observer(self):
+
+        if self.observer_type == "minmax":
+
+            return MinMaxObserver(
+                bits=self.bits
+            )
+
+        return PercentileObserver(
+            bits=self.bits,
+            percentile=self.percentile
+        )
 
     def calibrate(self, model, calibration_data):
 
@@ -131,9 +149,7 @@ class ModelCalibrator:
 
                 if name not in self.observers:
 
-                    self.observers[name] = MinMaxObserver(
-                        bits=self.bits
-                    )
+                    self.observers[name] = self._create_observer()
 
                 self.observers[name].update(output)
 
@@ -203,3 +219,115 @@ class ModelCalibrator:
             }
 
         return results
+
+
+class PercentileObserver(MinMaxObserver):
+
+    def __init__(
+        self,
+        bits=8,
+        percentile=99.9,
+        max_samples=200000,
+        samples_per_update=20000
+    ):
+
+        super().__init__(bits=bits)
+
+        if not isinstance(percentile, (int, float)):
+            raise TypeError("percentile must be numeric")
+
+        if not 0 < percentile <= 100:
+            raise ValueError("percentile must be in (0, 100]")
+
+        if not isinstance(max_samples, int) or max_samples <= 0:
+            raise ValueError("max_samples must be positive")
+
+        if not isinstance(samples_per_update, int) or samples_per_update <= 0:
+            raise ValueError("samples_per_update must be positive")
+
+        self.percentile = percentile
+        self.max_samples = max_samples
+        self.samples_per_update = samples_per_update
+
+        self.samples = torch.empty(0, dtype=torch.float32)
+        self.clipping_threshold = None
+
+    def update(self, tensor):
+
+        # Maintain global min/max and observation counts
+        super().update(tensor)
+
+        values = tensor.detach().abs().reshape(-1)
+
+        # Sample large activation tensors to limit memory usage
+        if values.numel() > self.samples_per_update:
+
+            indices = torch.randperm(
+                values.numel(),
+                device=values.device
+            )[:self.samples_per_update]
+
+            values = values[indices]
+
+        values = values.float().cpu()
+
+        combined = torch.cat([
+            self.samples,
+            values
+        ])
+
+        # Keep a bounded random sample
+        if combined.numel() > self.max_samples:
+
+            indices = torch.randperm(
+                combined.numel()
+            )[:self.max_samples]
+
+            combined = combined[indices]
+
+        self.samples = combined
+
+    def calculate_qparams(self):
+
+        if self.samples.numel() == 0:
+            raise RuntimeError(
+                "Observer has not collected any data"
+            )
+
+        threshold = torch.quantile(
+            self.samples,
+            self.percentile / 100.0
+        )
+
+        self.clipping_threshold = threshold.item()
+
+        scale = (
+            threshold / self.q_max
+            if threshold.item() != 0
+            else torch.tensor(1.0)
+        )
+
+        return scale.float(), 0
+
+    def get_statistics(self):
+
+        stats = super().get_statistics()
+
+        stats.update({
+            "percentile": self.percentile,
+            "clipping_threshold": self.clipping_threshold,
+            "sample_count": self.samples.numel()
+        })
+
+        return stats
+
+    def reset(self):
+
+        super().reset()
+
+        self.samples = torch.empty(
+            0,
+            dtype=torch.float32
+        )
+
+        self.clipping_threshold = None

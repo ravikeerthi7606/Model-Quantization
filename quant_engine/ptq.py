@@ -98,11 +98,17 @@ def ptq_quantize_model(
     bits=8,
     granularity="per_channel",
     group_size=128,
-    axis=0
+    axis=0,
+    calibration_method="minmax",
+    percentile=99.9
 ):
 
     # Step 1: Collect activation statistics
-    calibrator = ModelCalibrator(bits=bits)
+    calibrator = ModelCalibrator(
+    bits=bits,
+    observer_type=calibration_method,
+    percentile=percentile
+)
 
     calibrator.calibrate(
         model,

@@ -8,6 +8,8 @@ from quant_engine.observers import (
     ModelCalibrator
 )
 
+from quant_engine.observers import PercentileObserver
+
 
 def test_minmax_observer():
 
@@ -162,3 +164,81 @@ def test_hooks_removed():
 
     for module in model.modules():
         assert len(module._forward_hooks) == 0
+
+
+def test_percentile_observer():
+
+    observer = PercentileObserver(
+        bits=8,
+        percentile=99.0,
+        max_samples=10000
+    )
+
+    values = torch.cat([
+        torch.ones(999),
+        torch.tensor([1000.0])
+    ])
+
+    observer.update(values)
+
+    scale, zero_point = observer.calculate_qparams()
+
+    assert torch.isclose(
+        scale,
+        torch.tensor(1.0 / 127)
+    )
+
+    assert zero_point == 0
+
+
+def test_percentile_clipping():
+
+    observer = PercentileObserver(
+        bits=8,
+        percentile=90.0
+    )
+
+    observer.update(torch.tensor([
+        1.0, 2.0, 3.0, 4.0, 100.0
+    ]))
+
+    scale, _ = observer.calculate_qparams()
+
+    assert observer.clipping_threshold < 100.0
+    assert scale.item() > 0
+
+
+def test_percentile_sample_limit():
+
+    observer = PercentileObserver(
+        bits=8,
+        percentile=99.9,
+        max_samples=1000,
+        samples_per_update=5000
+    )
+
+    observer.update(torch.randn(10000))
+
+    assert observer.samples.numel() <= 1000
+
+
+def test_invalid_percentile():
+
+    with pytest.raises(ValueError):
+
+        PercentileObserver(
+            bits=8,
+            percentile=101
+        )
+
+
+def test_percentile_reset():
+
+    observer = PercentileObserver(bits=8)
+
+    observer.update(torch.randn(100))
+    observer.reset()
+
+    assert observer.samples.numel() == 0
+    assert observer.min_val is None
+    assert observer.max_val is None
