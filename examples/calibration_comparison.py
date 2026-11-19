@@ -5,6 +5,8 @@ import torch.nn as nn
 from quant_engine.observers import ModelCalibrator
 
 
+
+
 class CNN(nn.Module):
 
     def __init__(self):
